@@ -11,6 +11,8 @@ from functools import cached_property
 import earthkit.data as ekd
 import entrypoints
 
+from .compute import make_rh_from_t_and_q, make_tcwv_from_q
+
 LOG = logging.getLogger(__name__)
 
 
@@ -33,7 +35,16 @@ class FileInput:
 
     @cached_property
     def all_fields(self):
-        return ekd.from_source("file", self.file)
+        ds = ekd.from_source("file", self.file)
+        param = [p.lower() for p in ds.metadata("param")]
+        assert isinstance(param, (list, tuple))
+        if "tcwv" not in param and "q" in param:
+            logging.warning("Parameter 'tcwv' on surface levels is not available, computing it from 'q' instead")
+            ds = make_tcwv_from_q(ds)
+        if "r" not in param and "q" in param:
+            logging.warning("Parameter 'r' on pressure levels is not available, computing it from 't' and 'q' instead")
+            ds = make_rh_from_t_and_q(ds)
+        return ds
 
 
 def get_input(name, *args, **kwargs):
